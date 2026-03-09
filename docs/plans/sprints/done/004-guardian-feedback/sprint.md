@@ -1,9 +1,13 @@
 ---
-id: "004"
+id: '004'
 title: Guardian Feedback
-status: planning
+status: done
 branch: sprint/004-guardian-feedback
-use-cases: [SUC-001, SUC-002, SUC-003, SUC-004]
+use-cases:
+- SUC-001
+- SUC-002
+- SUC-003
+- SUC-004
 ---
 
 # Sprint 004 — Guardian Feedback

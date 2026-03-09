@@ -1,9 +1,11 @@
 ---
-id: "002"
+id: '002'
 title: email service and review send integration
-status: todo
-use-cases: [SUC-001]
-depends-on: ["001"]
+status: done
+use-cases:
+- SUC-001
+depends-on:
+- '001'
 ---
 
 # email service and review send integration

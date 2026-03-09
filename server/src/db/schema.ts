@@ -10,6 +10,7 @@ import {
   json,
   primaryKey,
   unique,
+  uuid,
 } from 'drizzle-orm/pg-core';
 
 // ---------- Enums ----------
@@ -80,10 +81,14 @@ export const monthlyReviews = pgTable(
     subject: text('subject'),
     body: text('body'),
     sentAt: timestamp('sent_at'),
+    feedbackToken: uuid('feedback_token').notNull().defaultRandom(),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
-  (t) => [unique().on(t.instructorId, t.studentId, t.month)],
+  (t) => [
+    unique().on(t.instructorId, t.studentId, t.month),
+    unique().on(t.feedbackToken),
+  ],
 );
 
 export const reviewTemplates = pgTable('review_templates', {

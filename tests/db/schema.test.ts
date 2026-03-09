@@ -300,6 +300,66 @@ describe('volunteer_hours', () => {
   });
 });
 
+describe('monthly_reviews feedback_token', () => {
+  it('assigns a non-null UUID feedback_token by default', async () => {
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email: 'instr11@example.com', name: 'Instr11' })
+      .returning();
+    const [instructor] = await db
+      .insert(schema.instructors)
+      .values({ userId: user.id })
+      .returning();
+    const [student] = await db
+      .insert(schema.students)
+      .values({ name: 'Student FBToken' })
+      .returning();
+    const [review] = await db
+      .insert(schema.monthlyReviews)
+      .values({ instructorId: instructor.id, studentId: student.id, month: '2026-01' })
+      .returning();
+    expect(review.feedbackToken).toBeDefined();
+    expect(typeof review.feedbackToken).toBe('string');
+    expect(review.feedbackToken).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it('rejects duplicate feedback_token', async () => {
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email: 'instr12@example.com', name: 'Instr12' })
+      .returning();
+    const [instructor] = await db
+      .insert(schema.instructors)
+      .values({ userId: user.id })
+      .returning();
+    const [student1] = await db
+      .insert(schema.students)
+      .values({ name: 'Student FBDup1' })
+      .returning();
+    const [student2] = await db
+      .insert(schema.students)
+      .values({ name: 'Student FBDup2' })
+      .returning();
+    const token = '00000000-0000-0000-0000-000000000001';
+    await db.insert(schema.monthlyReviews).values({
+      instructorId: instructor.id,
+      studentId: student1.id,
+      month: '2026-02',
+      feedbackToken: token,
+    });
+    await expect(
+      db.insert(schema.monthlyReviews).values({
+        instructorId: instructor.id,
+        studentId: student2.id,
+        month: '2026-03',
+        feedbackToken: token,
+      }),
+    ).rejects.toThrow();
+  });
+});
+
 describe('monthly_reviews unique constraint', () => {
   it('rejects duplicate (instructorId, studentId, month)', async () => {
     const [user] = await db

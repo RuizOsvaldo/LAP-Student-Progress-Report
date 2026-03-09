@@ -22,6 +22,13 @@
       "when": 1772492313010,
       "tag": "0002_amazing_alex_wilder",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773090675075,
+      "tag": "0003_freezing_gamma_corps",
+      "breakpoints": true
     }
   ]
 }

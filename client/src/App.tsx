@@ -7,9 +7,13 @@ import { ReviewEditorPage } from './pages/ReviewEditorPage'
 import { TemplateListPage } from './pages/TemplateListPage'
 import { TemplateEditorPage } from './pages/TemplateEditorPage'
 import { CheckinPage } from './pages/CheckinPage'
-import { AdminStub } from './pages/AdminStub'
+import { AdminDashboardPage } from './pages/AdminDashboardPage'
+import { InstructorListPage } from './pages/InstructorListPage'
+import { CompliancePage } from './pages/CompliancePage'
+import { VolunteerHoursPage } from './pages/VolunteerHoursPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { AdminLayout } from './components/AdminLayout'
 
 function App() {
   return (
@@ -54,9 +58,32 @@ function App() {
           <CheckinPage />
         </ProtectedRoute>
       </Route>
+      <Route path="/admin/instructors">
+        <ProtectedRoute role="admin">
+          <AdminLayout>
+            <InstructorListPage />
+          </AdminLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/compliance">
+        <ProtectedRoute role="admin">
+          <AdminLayout>
+            <CompliancePage />
+          </AdminLayout>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/admin/volunteer-hours">
+        <ProtectedRoute role="admin">
+          <AdminLayout>
+            <VolunteerHoursPage />
+          </AdminLayout>
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin">
         <ProtectedRoute role="admin">
-          <AdminStub />
+          <AdminLayout>
+            <AdminDashboardPage />
+          </AdminLayout>
         </ProtectedRoute>
       </Route>
       <Route component={NotFoundPage} />

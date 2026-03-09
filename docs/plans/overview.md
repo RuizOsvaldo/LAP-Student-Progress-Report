@@ -10,12 +10,14 @@ LEAGUE Report
 
 ## Problem Statement
 
-Martial arts and activity-based studios need a structured way for instructors
-to communicate monthly student progress to guardians. Today this happens
-inconsistently — some instructors send emails, others forget, and admins have
-no visibility into compliance. Guardians have no easy channel to leave
-structured feedback. The result is poor communication, missed progress reports,
-and no audit trail.
+The LEAGUE of Amazing Programmers is a San Diego-based nonprofit that runs
+free and low-cost coding classes (Python, Java, Robotics, AI) across San Diego
+County through volunteer instructors and teaching assistants. Instructors need
+a structured way to communicate monthly student progress to guardians. Today
+this happens inconsistently — some instructors send emails, others forget, and
+admins have no visibility into compliance. Guardians have no easy channel to
+leave structured feedback. The result is poor communication, missed progress
+reports, and no audit trail.
 
 LEAGUE Report gives instructors a guided workflow to draft and send monthly
 progress reviews, gives admins a compliance dashboard to track who has sent
@@ -24,12 +26,14 @@ received.
 
 ## Target Users
 
-- **Instructors** — Write monthly progress reviews for their assigned students;
-  use templates to speed up recurring emails; view their own review history.
+- **Instructors** — Volunteer coding instructors who teach weekly classes
+  (Python, Java, Robotics, etc.); write monthly progress reviews for their
+  assigned students; use templates to speed up recurring emails; view their
+  own review history.
 - **Admins** — Activate/deactivate instructor accounts; view compliance
   dashboards showing which instructors have sent reviews for the current month.
-- **Guardians** — Access a public (unauthenticated) link to leave a star-rating
-  service feedback for a student.
+- **Guardians** — Parents or guardians of students; access a public
+  (unauthenticated) link to leave a star-rating service feedback for a student.
 
 ## Key Constraints
 
@@ -41,8 +45,9 @@ received.
   defines lightweight response-shape interfaces locally.
 - **Auth:** Stub role-based login for Sprint 001 (no real credentials); real
   auth (Passport.js + Google OAuth) deferred to a later sprint.
-- **Pike13:** External student management system; integration is stubbed in v1
-  (OAuth tokens stored per instructor; full sync deferred).
+- **Pike13:** External student/class management system used by the LEAGUE to
+  manage enrollments and attendance; integration is stubbed in v1 (OAuth tokens
+  stored per instructor; full sync deferred).
 - **Team:** AI-assisted development (CLASI process).
 
 ## High-Level Requirements
@@ -79,12 +84,13 @@ received.
    - Client defines lightweight response-shape interfaces locally
 
 7. **Instructor filtering (TA/VA exclusion)**
+   - The LEAGUE uses Teaching Assistants (TAs) and Volunteer Assistants (VAs)
+     alongside lead instructors in its coding classes
    - When pulling instructors from Pike13 classes, skip any whose name
      begins with `TA ` or `VA ` (e.g. "TA John Smith", "VA Jane Doe")
-   - Only instructors whose accounts were explicitly created by an admin
+   - Only lead instructors whose accounts were explicitly created by an admin
      receive auto-generated monthly reports
-   - This ensures volunteer and assistant roles do not pollute the report
-     workflow
+   - This ensures TA/VA roles do not pollute the report workflow
 
 8. **Automated monthly report generation**
    - On the 1st of each month, automatically create a `pending` review
@@ -95,35 +101,43 @@ received.
      endpoint or `pg_cron`; no external scheduler required
 
 9. **GitHub activity summaries**
+   - The LEAGUE's Java and Python students maintain GitHub repositories as
+     part of their coursework; class titles follow the pattern
+     "Python@CV Cobra" or "Java@SD Downtown"
    - When drafting a progress review for a student in a class whose title
-     contains `Java` or `Python` (e.g. "Python@CV Cobra"), fetch that
-     student's GitHub push events from the past 30 days via the
-     **GitHub MCP server** and generate a plain-language summary of what
-     they accomplished
+     contains `Java` or `Python`, fetch that student's GitHub push events
+     from the past 30 days via the **GitHub MCP server** and generate a
+     plain-language summary of what they accomplished
    - The student's GitHub username is stored as a custom field on their
      Pike13 client profile and synced during the Pike13 student-assignment
      sync
    - Summary is pre-populated into the review draft; the instructor can
      edit it before sending
-   - Classes without `Java` or `Python` in the title receive no GitHub
-     summary (the field is simply absent from the draft)
+   - Classes without `Java` or `Python` in the title (e.g. Robotics, AI,
+     Tech Club) receive no GitHub summary (the field is simply absent from
+     the draft)
 
 10. **Manager reporting — staff ratio alerts**
+    - The LEAGUE targets a 6:1 student-to-instructor ratio in its coding
+      classes; exceeding this degrades the learning experience
     - After each Pike13 sync, compute the active student count per
       instructor; instructors who teach two classes simultaneously are
       counted once (deduplicated by instructor ID, not class)
     - **Warning:** instructor has 5–6 active students → send admin a
       warning notification
     - **Flag:** instructor has more than 6 active students → send admin an
-      urgent alert recommending an additional assistant be added
+      urgent alert recommending an additional TA/VA be added
     - Alerts surface in the admin compliance dashboard and optionally via
       email; the 6:1 ratio is configurable in `admin_settings`
 
 11. **Volunteer hours tracking**
+    - The LEAGUE is a nonprofit that relies heavily on volunteer instructors
+      and TAs; tracking their hours is important for reporting to funders
+      and grant applications
     - Admin panel section for recording and reporting volunteer hours
     - **Teaching hours:** automatically sourced from Pike13 class data —
-      any session where a TA/VA was present counts as a teaching volunteer
-      hour; populated during the Pike13 sync
+      any coding session where a TA/VA was present counts as a teaching
+      volunteer hour; populated during the Pike13 sync
     - **Other categories:** manually entered by admin; initial supported
       categories include `Fundraising`, `Events`, `Admin Support`, and a
       free-text `Other` field; category list is admin-configurable
@@ -134,19 +148,21 @@ received.
       (`pike13` | `manual`)
 
 12. **Weekly TA attendance check-in**
+    - The LEAGUE's TAs and VAs attend coding sessions alongside lead
+      instructors; accurate attendance tracking ensures volunteer hours
+      (requirement 11) and class ratios (requirement 10) are correct
     - Every week (configurable day, default Monday), each active instructor
       receives an in-app prompt listing the TAs/VAs assigned to their
       class(es) for the prior week
-    - Instructor confirms each TA as **Present** or **Absent** for that
-      week; confirmation is stored and drives accurate Pike13 attendance
-      recording
-    - If a TA is marked Absent, the volunteer teaching hour for that
+    - Instructor confirms each TA/VA as **Present** or **Absent** for that
+      week; confirmation is stored and drives accurate volunteer hour credit
+    - If a TA/VA is marked Absent, the volunteer teaching hour for that
       session is not credited (requirement 11)
     - Admin can see check-in completion status per instructor in the
       compliance dashboard; overdue (unsubmitted) check-ins are flagged
     - Schema: `ta_checkins` table with columns `id`, `instructorId`,
-      `taUserId`, `weekOf` (ISO date of Monday), `wasPresent` (boolean),
-      `submittedAt`
+      `taName` (text), `weekOf` (ISO date of Monday), `wasPresent`
+      (boolean), `submittedAt`
 
 ## Technology Stack
 
@@ -176,7 +192,7 @@ All API routes are prefixed with `/api`. PostgreSQL is the single data store.
 | **002** | Instructor Core | Instructor dashboard, review editor, template CRUD, month picker, review status workflow, weekly TA attendance check-in prompt and submission |
 | **003** | Admin Panel | Admin overview, instructor list (activate/deactivate), compliance dashboard, staff ratio alerts (6:1 warning/flag), volunteer hours tracking (manual entry + reporting), check-in completion visibility |
 | **004** | Guardian Feedback | Public feedback page, star-rating submission, feedback read route for admins |
-| **005** | Pike13 Integration | Full OAuth flow, real student-assignment sync, TA/VA instructor filtering, GitHub username sync, teaching volunteer hours auto-populated from Pike13 session data |
+| **005** | Pike13 Integration | Full OAuth flow, real student-assignment sync from the LEAGUE's Pike13 account, TA/VA instructor filtering, GitHub username sync, teaching volunteer hours auto-populated from Pike13 session data |
 | **006** | Automated Reports & GitHub Summaries | Monthly auto-generation of review records on the 1st, GitHub MCP integration for Java/Python class push summaries pre-populated into drafts |
 
 ## Out of Scope

@@ -50,9 +50,11 @@ describe('Routing', () => {
     vi.restoreAllMocks()
   })
 
-  it('authenticated admin /admin renders admin stub', () => {
+  it('authenticated admin /admin renders admin dashboard', () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve([]) })))
     renderAt('/admin', ADMIN)
-    expect(screen.getByText('Admin — coming in Sprint 003')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Admin Dashboard' })).toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 
   it('404 for unknown route', () => {

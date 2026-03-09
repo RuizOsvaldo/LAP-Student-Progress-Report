@@ -4,6 +4,7 @@ import {
   serial,
   text,
   integer,
+  real,
   boolean,
   timestamp,
   json,
@@ -150,6 +151,16 @@ export const adminNotifications = pgTable('admin_notifications', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
+export const volunteerHours = pgTable('volunteer_hours', {
+  id: serial('id').primaryKey(),
+  volunteerName: text('volunteer_name').notNull(),
+  category: text('category').notNull(),
+  hours: real('hours').notNull(),
+  description: text('description'),
+  recordedAt: timestamp('recorded_at').notNull().defaultNow(),
+  source: text('source').notNull().default('manual'),
+});
+
 // ---------- Exported types ----------
 
 export type User = typeof users.$inferSelect;
@@ -170,3 +181,5 @@ export type TaCheckin = typeof taCheckins.$inferSelect;
 export type NewTaCheckin = typeof taCheckins.$inferInsert;
 export type AdminNotification = typeof adminNotifications.$inferSelect;
 export type NewAdminNotification = typeof adminNotifications.$inferInsert;
+export type VolunteerHour = typeof volunteerHours.$inferSelect;
+export type NewVolunteerHour = typeof volunteerHours.$inferInsert;

@@ -3,20 +3,11 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { taCheckins, adminNotifications } from '../db/schema';
 import { isActiveInstructor } from '../middleware/auth';
+import { currentWeekMonday } from '../utils/dateUtils';
 
 export const checkinsRouter = Router();
 
 checkinsRouter.use(isActiveInstructor);
-
-/** Returns the ISO date string for the Monday of the current week */
-function currentWeekMonday(): string {
-  const today = new Date();
-  const day = today.getDay(); // 0=Sun, 1=Mon, ...
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + diff);
-  return monday.toISOString().slice(0, 10);
-}
 
 // GET /api/checkins/pending
 checkinsRouter.get('/checkins/pending', async (req, res, next) => {

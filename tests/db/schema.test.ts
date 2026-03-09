@@ -20,6 +20,7 @@ beforeAll(async () => {
   db = drizzle(pool, { schema });
 
   // Clean up any leftover test data in reverse FK order
+  await db.delete(schema.volunteerHours);
   await db.delete(schema.taCheckins);
   await db.delete(schema.adminNotifications);
   await db.delete(schema.pike13Tokens);
@@ -274,6 +275,28 @@ describe('admin_notifications', () => {
     expect(notif.message).toBe('Please create TA profile for Alice');
     expect(notif.isRead).toBe(false);
     expect(notif.fromUserId).toBe(user.id);
+  });
+});
+
+describe('volunteer_hours', () => {
+  it('inserts and reads back a row with float hours', async () => {
+    const [row] = await db
+      .insert(schema.volunteerHours)
+      .values({ volunteerName: 'Jane Smith', category: 'Teaching', hours: 1.5 })
+      .returning();
+    expect(row.volunteerName).toBe('Jane Smith');
+    expect(row.category).toBe('Teaching');
+    expect(row.hours).toBeCloseTo(1.5);
+    expect(row.source).toBe('manual');
+    expect(row.description).toBeNull();
+  });
+
+  it('preserves source value when explicitly set', async () => {
+    const [row] = await db
+      .insert(schema.volunteerHours)
+      .values({ volunteerName: 'John Doe', category: 'Events', hours: 2.0, source: 'pike13' })
+      .returning();
+    expect(row.source).toBe('pike13');
   });
 });
 

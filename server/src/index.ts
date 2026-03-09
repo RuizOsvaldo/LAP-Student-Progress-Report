@@ -22,6 +22,8 @@ import { instructorRouter } from './routes/instructor';
 import { reviewsRouter } from './routes/reviews';
 import { templatesRouter } from './routes/templates';
 import { checkinsRouter } from './routes/checkins';
+import { adminRouter } from './routes/admin';
+import { volunteerHoursRouter } from './routes/volunteer-hours';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -62,6 +64,8 @@ app.use('/api', instructorRouter);
 app.use('/api', reviewsRouter);
 app.use('/api', templatesRouter);
 app.use('/api', checkinsRouter);
+app.use('/api', adminRouter);
+app.use('/api', volunteerHoursRouter);
 
 app.use(errorHandler);
 

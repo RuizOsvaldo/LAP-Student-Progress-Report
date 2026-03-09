@@ -1,9 +1,13 @@
 ---
-id: "005"
+id: '005'
 title: FeedbackPage and AdminFeedbackPage client pages and tests
-status: todo
-use-cases: [SUC-002, SUC-003]
-depends-on: ["003", "004"]
+status: done
+use-cases:
+- SUC-002
+- SUC-003
+depends-on:
+- '003'
+- '004'
 ---
 
 # FeedbackPage and AdminFeedbackPage client pages and tests

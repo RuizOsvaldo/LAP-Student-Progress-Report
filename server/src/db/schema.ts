@@ -149,7 +149,6 @@ export const taCheckins = pgTable(
 export const adminNotifications = pgTable('admin_notifications', {
   id: serial('id').primaryKey(),
   fromUserId: integer('from_user_id')
-    .notNull()
     .references(() => users.id),
   message: text('message').notNull(),
   isRead: boolean('is_read').notNull().default(false),

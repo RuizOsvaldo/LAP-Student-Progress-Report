@@ -3,6 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import { monthlyReviews, students } from '../db/schema';
 import { isActiveInstructor } from '../middleware/auth';
+import { sendReviewEmail } from '../services/email';
 
 export const reviewsRouter = Router();
 
@@ -168,7 +169,11 @@ reviewsRouter.post('/reviews/:id/send', async (req, res, next) => {
     const id = parseInt(req.params.id, 10);
 
     const [existing] = await db
-      .select({ review: monthlyReviews, studentName: students.name })
+      .select({
+        review: monthlyReviews,
+        studentName: students.name,
+        guardianEmail: students.guardianEmail,
+      })
       .from(monthlyReviews)
       .innerJoin(students, eq(monthlyReviews.studentId, students.id))
       .where(and(eq(monthlyReviews.id, id), eq(monthlyReviews.instructorId, instructorId)));
@@ -190,6 +195,18 @@ reviewsRouter.post('/reviews/:id/send', async (req, res, next) => {
       .set({ status: 'sent', sentAt: now, updatedAt: now })
       .where(eq(monthlyReviews.id, id))
       .returning();
+
+    if (existing.guardianEmail) {
+      sendReviewEmail({
+        toEmail: existing.guardianEmail,
+        studentName: existing.studentName,
+        month: updated.month,
+        reviewBody: updated.body ?? '',
+        feedbackToken: updated.feedbackToken,
+      }).catch((err) => {
+        (req.log ?? console).error({ err }, 'SendGrid email failed');
+      });
+    }
 
     res.json(formatReview(updated, existing.studentName));
   } catch (err) {

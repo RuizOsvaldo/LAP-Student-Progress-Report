@@ -1,9 +1,11 @@
 ---
-id: "004"
+id: '004'
 title: admin feedback API route and server tests
-status: todo
-use-cases: [SUC-003]
-depends-on: ["003"]
+status: done
+use-cases:
+- SUC-003
+depends-on:
+- '003'
 ---
 
 # admin feedback API route and server tests

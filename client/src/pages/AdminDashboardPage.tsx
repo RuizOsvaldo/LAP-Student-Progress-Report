@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { AdminNotificationDto } from '../types/admin'
+import type { Pike13StatusDto, Pike13SyncResultDto } from '../types/pike13'
 
 async function fetchNotifications(unreadOnly = false): Promise<AdminNotificationDto[]> {
   const url = unreadOnly
@@ -15,6 +16,21 @@ async function markRead(id: number): Promise<void> {
   if (!res.ok) throw new Error('Failed to mark notification as read')
 }
 
+async function fetchPike13Status(): Promise<Pike13StatusDto> {
+  const res = await fetch('/api/admin/pike13/status')
+  if (!res.ok) throw new Error('Failed to load Pike13 status')
+  return res.json()
+}
+
+async function triggerPike13Sync(): Promise<Pike13SyncResultDto> {
+  const res = await fetch('/api/admin/sync/pike13', { method: 'POST' })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(data.error ?? 'Sync failed')
+  }
+  return res.json()
+}
+
 export function AdminDashboardPage() {
   const queryClient = useQueryClient()
 
@@ -23,11 +39,20 @@ export function AdminDashboardPage() {
     queryFn: () => fetchNotifications(),
   })
 
+  const { data: pike13Status } = useQuery<Pike13StatusDto>({
+    queryKey: ['admin', 'pike13', 'status'],
+    queryFn: fetchPike13Status,
+  })
+
   const unreadCount = notifications.filter((n) => !n.isRead).length
 
   const markReadMutation = useMutation({
     mutationFn: (id: number) => markRead(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'notifications'] }),
+  })
+
+  const syncMutation = useMutation({
+    mutationFn: triggerPike13Sync,
   })
 
   return (
@@ -74,6 +99,48 @@ export function AdminDashboardPage() {
               </li>
             ))}
         </ul>
+      )}
+
+      {/* Pike13 section */}
+      {pike13Status !== undefined && (
+        <section className="mt-8">
+          <h2 className="text-xl font-semibold text-slate-800 mb-3">Pike13</h2>
+
+          {pike13Status.connected ? (
+            <div className="space-y-3">
+              <p className="font-medium text-green-600">Pike13: Connected</p>
+              <button
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {syncMutation.isPending ? 'Syncing…' : 'Sync Pike13'}
+              </button>
+              {syncMutation.isSuccess && syncMutation.data && (
+                <p className="text-sm text-slate-700">
+                  Synced: {syncMutation.data.studentsUpserted} students,{' '}
+                  {syncMutation.data.assignmentsCreated} assignments,{' '}
+                  {syncMutation.data.hoursCreated} hours
+                </p>
+              )}
+              {syncMutation.isError && (
+                <p className="text-sm text-red-600">
+                  {(syncMutation.error as Error).message}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-slate-600">Pike13: Not Connected</p>
+              <button
+                onClick={() => { window.location.href = '/api/admin/pike13/connect' }}
+                className="rounded bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              >
+                Connect Pike13
+              </button>
+            </div>
+          )}
+        </section>
       )}
     </div>
   )

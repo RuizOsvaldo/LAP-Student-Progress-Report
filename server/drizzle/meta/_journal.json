@@ -36,6 +36,13 @@
       "when": 1773091824791,
       "tag": "0004_dark_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773193352917,
+      "tag": "0005_white_hiroim",
+      "breakpoints": true
     }
   ]
 }

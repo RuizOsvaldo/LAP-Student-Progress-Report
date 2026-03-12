@@ -36,6 +36,9 @@ function mockFetch(notifications: AdminNotificationDto[]) {
       if ((url as string).includes('/api/admin/notifications')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve(notifications) })
       }
+      if ((url as string).includes('/api/admin/pike13/status')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ connected: false }) })
+      }
       return Promise.reject(new Error(`Unmocked fetch: ${url}`))
     }),
   )
@@ -74,6 +77,9 @@ describe('AdminDashboardPage', () => {
         }
         if ((url as string).includes('/api/admin/notifications')) {
           return Promise.resolve({ ok: true, json: () => Promise.resolve(NOTIFICATIONS) })
+        }
+        if ((url as string).includes('/api/admin/pike13/status')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ connected: false }) })
         }
         return Promise.reject(new Error(`Unmocked fetch: ${url}`))
       }),

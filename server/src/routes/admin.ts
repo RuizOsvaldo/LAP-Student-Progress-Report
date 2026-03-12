@@ -10,8 +10,10 @@ import {
   taCheckins,
   adminNotifications,
   serviceFeedback,
+  pike13AdminToken,
 } from '../db/schema';
 import { isAdmin } from '../middleware/auth';
+import { runSync } from '../services/pike13Sync';
 import { lastMondayOfMonth } from '../utils/dateUtils';
 
 export const adminRouter = Router();
@@ -229,6 +231,136 @@ adminRouter.patch('/admin/notifications/:id/read', async (req, res, next) => {
     }
 
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- Pike13 OAuth routes ----------
+
+// GET /api/admin/pike13/connect
+adminRouter.get('/admin/pike13/connect', (_req, res) => {
+  const clientId = process.env.PIKE13_CLIENT_ID;
+  const callbackUrl = process.env.PIKE13_CALLBACK_URL;
+  const authUrl = `https://pike13.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl ?? '')}&response_type=code`;
+  res.redirect(authUrl);
+});
+
+// GET /api/admin/pike13/callback
+adminRouter.get('/admin/pike13/callback', async (req, res, next) => {
+  try {
+    const code = req.query.code as string;
+    if (!code) {
+      res.status(400).json({ error: 'Missing code parameter' });
+      return;
+    }
+
+    const tokenRes = await fetch('https://pike13.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.PIKE13_CLIENT_ID,
+        client_secret: process.env.PIKE13_CLIENT_SECRET,
+        redirect_uri: process.env.PIKE13_CALLBACK_URL,
+        code,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      res.status(502).json({ error: 'Failed to exchange code with Pike13' });
+      return;
+    }
+
+    const data = await tokenRes.json() as {
+      access_token: string;
+      refresh_token?: string;
+      expires_in?: number;
+    };
+
+    const expiresAt = data.expires_in
+      ? new Date(Date.now() + data.expires_in * 1000)
+      : null;
+
+    await db.delete(pike13AdminToken);
+    await db.insert(pike13AdminToken).values({
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token ?? null,
+      expiresAt,
+    });
+
+    res.redirect('/admin');
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/pike13/status
+adminRouter.get('/admin/pike13/status', async (_req, res, next) => {
+  try {
+    const rows = await db.select({ id: pike13AdminToken.id }).from(pike13AdminToken);
+    res.json({ connected: rows.length > 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/admin/sync/pike13
+adminRouter.post('/admin/sync/pike13', async (_req, res, next) => {
+  try {
+    const [token] = await db.select().from(pike13AdminToken);
+
+    if (!token) {
+      res.status(409).json({ error: 'Pike13 not connected' });
+      return;
+    }
+
+    let accessToken = token.accessToken;
+
+    // Refresh if expired
+    if (token.expiresAt && token.expiresAt < new Date()) {
+      if (!token.refreshToken) {
+        res.status(401).json({ error: 'Pike13 token expired and no refresh token available' });
+        return;
+      }
+
+      const refreshRes = await fetch('https://pike13.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: process.env.PIKE13_CLIENT_ID,
+          client_secret: process.env.PIKE13_CLIENT_SECRET,
+          grant_type: 'refresh_token',
+          refresh_token: token.refreshToken,
+        }),
+      });
+
+      if (!refreshRes.ok) {
+        res.status(401).json({ error: 'Pike13 token refresh failed' });
+        return;
+      }
+
+      const refreshData = await refreshRes.json() as {
+        access_token: string;
+        refresh_token?: string;
+        expires_in?: number;
+      };
+
+      const expiresAt = refreshData.expires_in
+        ? new Date(Date.now() + refreshData.expires_in * 1000)
+        : null;
+
+      await db.update(pike13AdminToken).set({
+        accessToken: refreshData.access_token,
+        refreshToken: refreshData.refresh_token ?? token.refreshToken,
+        expiresAt,
+      }).where(eq(pike13AdminToken.id, token.id));
+
+      accessToken = refreshData.access_token;
+    }
+
+    const result = await runSync(db, accessToken);
+    res.json(result);
   } catch (err) {
     next(err);
   }

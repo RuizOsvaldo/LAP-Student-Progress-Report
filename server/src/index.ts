@@ -26,11 +26,18 @@ import { adminRouter } from './routes/admin';
 import { volunteerHoursRouter } from './routes/volunteer-hours';
 import { feedbackRouter } from './routes/feedback';
 import { errorHandler } from './middleware/errorHandler';
+import { startScheduler } from './services/scheduler';
+import { slackRouter } from './routes/slack';
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
 
 app.use(cors());
+
+// Slack slash-command route must be mounted before express.json() so it can
+// capture the raw body for signature verification (Slack signs the raw bytes).
+app.use('/api', slackRouter);
+
 app.use(express.json());
 app.use(pinoHttp({ level: process.env.LOG_LEVEL || 'info' }));
 
@@ -86,6 +93,7 @@ if (require.main === module) {
   app.listen(port, '0.0.0.0', () => {
     console.log(`Server listening on http://localhost:${port}`);
   });
+  startScheduler();
 }
 
 export default app;

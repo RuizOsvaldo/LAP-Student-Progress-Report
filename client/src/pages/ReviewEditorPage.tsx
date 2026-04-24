@@ -48,9 +48,8 @@ export function ReviewEditorPage() {
   const [body, setBody] = useState('')
   const [dirty, setDirty] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
-  const [showTestSend, setShowTestSend] = useState(false)
-  const [testEmail, setTestEmail] = useState('')
   const [testSendState, setTestSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [testSendError, setTestSendError] = useState('')
   const [generateState, setGenerateState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [generateError, setGenerateError] = useState('')
 
@@ -196,11 +195,26 @@ export function ReviewEditorPage() {
           >
             {generateState === 'loading' ? 'Generating…' : 'Generate from GitHub'}
           </Button>
-              <Button
+          <Button
             variant="outline"
-            onClick={() => { setShowTestSend((v) => !v); setTestSendState('idle') }}
+            disabled={testSendState === 'sending'}
+            onClick={async () => {
+              setTestSendState('sending')
+              setTestSendError('')
+              try {
+                // Save first so the DB has the latest body before the test fires
+                if (dirty) await saveMutation.mutateAsync()
+                const res = await fetch(`/api/reviews/${id}/send-test-pike13`, { method: 'POST' })
+                const data = await res.json().catch(() => ({})) as { error?: string }
+                if (!res.ok) throw new Error(data.error ?? 'Test send failed')
+                setTestSendState('sent')
+              } catch (err) {
+                setTestSendError((err as Error).message)
+                setTestSendState('error')
+              }
+            }}
           >
-            Send Test Email
+            {testSendState === 'sending' ? 'Sending test…' : 'Send Test Note'}
           </Button>
           <Button
             onClick={() => sendMutation.mutate()}
@@ -212,46 +226,11 @@ export function ReviewEditorPage() {
         </div>
       )}
 
-      {!isSent && showTestSend && (
-        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <p className="mb-2 text-sm font-semibold text-amber-800">Send a test copy to any email address</p>
-          <p className="mb-3 text-xs text-amber-700">The review status won't change — this is just a preview of what the guardian will receive.</p>
-          <div className="flex gap-2">
-            <input
-              type="email"
-              value={testEmail}
-              onChange={(e) => { setTestEmail(e.target.value); setTestSendState('idle') }}
-              placeholder="you@jointheleague.org"
-              className="flex-1 rounded border border-amber-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
-            <Button
-              onClick={async () => {
-                setTestSendState('sending')
-                try {
-                  const res = await fetch(`/api/reviews/${id}/send-test`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ testEmail }),
-                  })
-                  if (!res.ok) throw new Error()
-                  setTestSendState('sent')
-                } catch {
-                  setTestSendState('error')
-                }
-              }}
-              disabled={testSendState === 'sending' || !testEmail}
-              className="bg-amber-500 hover:bg-amber-600 text-white"
-            >
-              {testSendState === 'sending' ? 'Sending…' : 'Send Test'}
-            </Button>
-          </div>
-          {testSendState === 'sent' && (
-            <p className="mt-2 text-sm text-green-700">Test email sent to {testEmail}!</p>
-          )}
-          {testSendState === 'error' && (
-            <p className="mt-2 text-sm text-red-600">Failed to send test email. Check that SendGrid is configured.</p>
-          )}
-        </div>
+      {!isSent && testSendState === 'sent' && (
+        <p className="mt-2 text-sm text-green-700">Test note sent to <a href="https://jtl.pike13.com/desk/clients/15025095" target="_blank" rel="noreferrer" className="underline">Test Guardian</a> in Pike13.</p>
+      )}
+      {!isSent && testSendState === 'error' && (
+        <p className="mt-2 text-sm text-red-600">Test note failed: {testSendError}</p>
       )}
 
       {saveMutation.isError && (

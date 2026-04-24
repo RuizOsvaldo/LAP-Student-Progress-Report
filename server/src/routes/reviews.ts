@@ -2,9 +2,10 @@ import { Router } from 'express';
 import { eq, and, gte, lt } from 'drizzle-orm';
 import Groq from 'groq-sdk';
 import { db } from '../db';
-import { monthlyReviews, students, instructors, users, studentAttendance } from '../db/schema';
+import { monthlyReviews, students, instructors, users, studentAttendance, pike13Tokens } from '../db/schema';
 import { isActiveInstructor } from '../middleware/auth';
 import { sendReviewEmail, sendTestReviewEmail } from '../services/email';
+import { sendPike13Note, buildPike13NoteText } from '../services/pike13Notes';
 
 export const reviewsRouter = Router();
 
@@ -177,9 +178,16 @@ reviewsRouter.post('/reviews/:id/send', async (req, res, next) => {
         review: monthlyReviews,
         studentName: students.name,
         guardianEmail: students.guardianEmail,
+        studentPike13Id: students.pike13SyncId,
+        instructorName: users.name,
+        instructorEmail: users.email,
+        pike13AccessToken: pike13Tokens.accessToken,
       })
       .from(monthlyReviews)
       .innerJoin(students, eq(monthlyReviews.studentId, students.id))
+      .innerJoin(instructors, eq(monthlyReviews.instructorId, instructors.id))
+      .innerJoin(users, eq(instructors.userId, users.id))
+      .leftJoin(pike13Tokens, eq(pike13Tokens.instructorId, instructors.id))
       .where(and(eq(monthlyReviews.id, id), eq(monthlyReviews.instructorId, instructorId)));
 
     if (!existing) {
@@ -200,7 +208,25 @@ reviewsRouter.post('/reviews/:id/send', async (req, res, next) => {
       .where(eq(monthlyReviews.id, id))
       .returning();
 
-    if (existing.guardianEmail) {
+    const log = (req as unknown as { log?: { error: (...a: unknown[]) => void } }).log ?? console;
+
+    // Primary: send via Pike13 note if the instructor has connected Pike13
+    // and the student has a Pike13 person ID.
+    if (existing.pike13AccessToken && existing.studentPike13Id) {
+      sendPike13Note({
+        accessToken: existing.pike13AccessToken,
+        studentPike13Id: existing.studentPike13Id,
+        noteText: buildPike13NoteText({
+          reviewBody: updated.body ?? '',
+          studentName: existing.studentName,
+          month: updated.month,
+          feedbackToken: updated.feedbackToken,
+        }),
+      }).catch((err) => {
+        log.error(err, 'Pike13 note delivery failed');
+      });
+    } else if (existing.guardianEmail) {
+      // Fallback: email if Pike13 is not connected for this instructor/student
       sendReviewEmail({
         toEmail: existing.guardianEmail,
         studentName: existing.studentName,
@@ -208,7 +234,7 @@ reviewsRouter.post('/reviews/:id/send', async (req, res, next) => {
         reviewBody: updated.body ?? '',
         feedbackToken: updated.feedbackToken,
       }).catch((err) => {
-        (req.log ?? console).error({ err }, 'SendGrid email failed');
+        log.error(err, 'SendGrid email failed');
       });
     }
 
@@ -218,7 +244,7 @@ reviewsRouter.post('/reviews/:id/send', async (req, res, next) => {
   }
 });
 
-// POST /api/reviews/:id/send-test — send a preview to any email without marking as sent
+// POST /api/reviews/:id/send-test — send a preview email to any address without marking as sent
 reviewsRouter.post('/reviews/:id/send-test', async (req, res, next) => {
   try {
     const instructorId = req.session.user!.instructorId!;
@@ -250,6 +276,76 @@ reviewsRouter.post('/reviews/:id/send-test', async (req, res, next) => {
     });
 
     res.json({ ok: true, sentTo: testEmail });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/reviews/:id/send-test-pike13
+// Sends a test note to the instructor's OWN Pike13 person profile (not the student's).
+// Does not change the review status. Requires the instructor to have connected Pike13.
+reviewsRouter.post('/reviews/:id/send-test-pike13', async (req, res, next) => {
+  try {
+    const instructorId = req.session.user!.instructorId!;
+    const id = parseInt(req.params.id, 10);
+
+    const [row] = await db
+      .select({
+        review: monthlyReviews,
+        month: monthlyReviews.month,
+        body: monthlyReviews.body,
+        feedbackToken: monthlyReviews.feedbackToken,
+        studentName: students.name,
+        instructorEmail: users.email,
+        instructorName: users.name,
+        pike13AccessToken: pike13Tokens.accessToken,
+      })
+      .from(monthlyReviews)
+      .innerJoin(students, eq(monthlyReviews.studentId, students.id))
+      .innerJoin(instructors, eq(monthlyReviews.instructorId, instructors.id))
+      .innerJoin(users, eq(instructors.userId, users.id))
+      .leftJoin(pike13Tokens, eq(pike13Tokens.instructorId, instructors.id))
+      .where(and(eq(monthlyReviews.id, id), eq(monthlyReviews.instructorId, instructorId)));
+
+    if (!row) {
+      res.status(404).json({ error: 'Review not found' });
+      return;
+    }
+
+    if (!row.pike13AccessToken) {
+      res.status(400).json({
+        error: 'You have not connected your Pike13 account. Connect it via the Pike13 OAuth flow first.',
+      });
+      return;
+    }
+
+    const testPersonId = process.env.PIKE13_TEST_PERSON_ID;
+    if (!testPersonId) {
+      res.status(503).json({
+        error:
+          'PIKE13_TEST_PERSON_ID is not set. ' +
+          'Create a fake client profile in Pike13, copy the person ID from their profile URL ' +
+          '(jtl.pike13.com/desk/clients/XXXXXX), and add PIKE13_TEST_PERSON_ID=XXXXXX to your .env.',
+      });
+      return;
+    }
+
+    const noteText =
+      buildPike13NoteText({
+        reviewBody: row.body?.trim()
+          || `[PLACEHOLDER — review not written yet]\n\nDear LEAGUE Family,\n\nThis is a sample of what the full review will look like once the instructor writes or generates it. The complete message will appear here, followed by the feedback section below.`,
+        studentName: row.studentName,
+        month: row.month,
+        feedbackToken: row.feedbackToken,
+      }) + '\n\n[TEST NOTE — Sent to test profile, not the guardian]';
+
+    await sendPike13Note({
+      accessToken: row.pike13AccessToken,
+      studentPike13Id: testPersonId,
+      noteText,
+    });
+
+    res.json({ ok: true, pike13TestPersonId: testPersonId });
   } catch (err) {
     next(err);
   }
@@ -288,7 +384,9 @@ reviewsRouter.post('/reviews/:id/generate-github-draft', async (req, res, next) 
       return;
     }
 
-    const { githubUsername, studentName, guardianName, instructorName, instructorEmail, review } = row;
+    // Strip any embedded password (e.g. "username:password" stored in Pike13)
+    const { studentName, guardianName, instructorName, instructorEmail, review } = row;
+    const githubUsername = (row.githubUsername ?? '').split(':')[0].trim();
     const month = review.month; // YYYY-MM
     const reviewMonthYear = month.split('-');
     const reviewYear = parseInt(reviewMonthYear[0], 10);

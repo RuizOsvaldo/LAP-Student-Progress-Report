@@ -17,6 +17,10 @@ import { isAdmin } from '../middleware/auth';
 import { runSync } from '../services/pike13Sync';
 import { lastMondayOfMonth } from '../utils/dateUtils';
 import sgMail from '@sendgrid/mail';
+import { isSlackConfigured } from '../services/slack';
+import { sendMonthlyReminders } from '../services/slackReminder';
+import { generateComplianceReport } from '../services/slackReport';
+import Groq from 'groq-sdk';
 
 export const adminRouter = Router();
 
@@ -596,6 +600,65 @@ adminRouter.post('/admin/sync/pike13', async (_req, res, next) => {
 
     const result = await runSync(db, accessToken);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ---------- Slack routes ----------
+
+// GET /api/admin/slack/status
+adminRouter.get('/admin/slack/status', (_req, res) => {
+  res.json({
+    configured: isSlackConfigured(),
+    hasChannel: !!process.env.SLACK_REVIEWS_CHANNEL,
+  });
+});
+
+// POST /api/admin/slack/remind
+// Body: { month?: string }
+// Sends a Slack DM to every active instructor who still has unsent reviews for the month.
+adminRouter.post('/admin/slack/remind', async (req, res, next) => {
+  try {
+    if (!isSlackConfigured()) {
+      res.status(503).json({ error: 'Slack is not configured (SLACK_BOT_TOKEN missing)' });
+      return;
+    }
+
+    const { month: monthParam } = req.body as { month?: string };
+    const month =
+      monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+        ? monthParam
+        : new Date().toISOString().slice(0, 7);
+
+    const result = await sendMonthlyReminders(month);
+    res.json({ month, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/admin/slack/report
+// Body: { month?: string, postToChannel?: boolean }
+// Builds a compliance summary and optionally posts it to SLACK_REVIEWS_CHANNEL.
+adminRouter.post('/admin/slack/report', async (req, res, next) => {
+  try {
+    if (!isSlackConfigured()) {
+      res.status(503).json({ error: 'Slack is not configured (SLACK_BOT_TOKEN missing)' });
+      return;
+    }
+
+    const { month: monthParam, postToChannel = false } = req.body as {
+      month?: string;
+      postToChannel?: boolean;
+    };
+    const month =
+      monthParam && /^\d{4}-\d{2}$/.test(monthParam)
+        ? monthParam
+        : new Date().toISOString().slice(0, 7);
+
+    const result = await generateComplianceReport(month, postToChannel);
+    res.json({ month, ...result });
   } catch (err) {
     next(err);
   }

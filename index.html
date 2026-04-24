@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>League Review Tool</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="../assets/favicon.svg">
+<link rel="stylesheet" href="../colors_and_type.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  @font-face { font-family:'Trade Gothic Pro'; font-style:normal; font-weight:300; font-display:swap;
+    src:url('../fonts/TradeGothicLTPro-Light.ttf') format('truetype'); }
+  @font-face { font-family:'Trade Gothic Pro'; font-style:normal; font-weight:400; font-display:swap;
+    src:url('../fonts/TradeGothicLTPro-Light.ttf') format('truetype'); }
+  @font-face { font-family:'Trade Gothic Pro'; font-style:normal; font-weight:600; font-display:swap;
+    src:url('../fonts/TradeGothicLTPro-Bold.ttf') format('truetype'); }
+  @font-face { font-family:'Trade Gothic Pro'; font-style:normal; font-weight:700; font-display:swap;
+    src:url('../fonts/TradeGothicLTPro-Bold.ttf') format('truetype'); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="icons.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="shell.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "sidebarTheme": "light",
+  "badgeStyle": "soft",
+  "radius": "default",
+  "density": "comfortable"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweaks] = useTweaks(TWEAK_DEFAULTS);
+  const [route, setRoute] = useState('dashboard');
+  const [month, setMonth] = useState(DATA.month);
+
+  // Persist route across reloads
+  useEffect(() => {
+    const r = localStorage.getItem('lrt-route');
+    if (r) setRoute(r);
+  }, []);
+  useEffect(() => { localStorage.setItem('lrt-route', route); }, [route]);
+
+  const user = { ...DATA.currentUser, isAdmin: true };
+
+  // public & login routes are chromeless
+  if (route === 'login') return <LoginPage onLogin={() => setRoute('dashboard')} />;
+  if (route === 'feedback') return <FeedbackPage />;
+
+  const routeTitle = {
+    dashboard: ['Dashboard', 'Instructor'],
+    reviews:   ['Reviews', 'Instructor'],
+    review:    ['Review editor', 'Instructor · Reviews'],
+    templates: ['Templates', 'Instructor'],
+    checkin:   ['TA check-in', 'Instructor'],
+    admin:     ['Admin overview', 'Admin'],
+    'admin-instructors': ['Instructors', 'Admin'],
+    'admin-compliance':  ['Compliance', 'Admin'],
+    'admin-feedback':    ['Guardian feedback', 'Admin'],
+  }[route] || ['', ''];
+
+  let ScreenEl;
+  switch (route) {
+    case 'review':    ScreenEl = <ReviewEditorPage go={setRoute} badgeStyle={tweaks.badgeStyle}/>; break;
+    case 'templates': ScreenEl = <TemplatesPage go={setRoute}/>; break;
+    case 'admin':     ScreenEl = <AdminDashboardPage go={setRoute} badgeStyle={tweaks.badgeStyle}/>; break;
+    case 'reviews':   ScreenEl = <DashboardPage go={setRoute} month={month} setMonth={setMonth} badgeStyle={tweaks.badgeStyle}/>; break;
+    default:          ScreenEl = <DashboardPage go={setRoute} month={month} setMonth={setMonth} badgeStyle={tweaks.badgeStyle}/>;
+  }
+
+  const shellCls = [
+    'app',
+    tweaks.density === 'compact' ? 'density-compact' : '',
+    tweaks.radius === 'friendly' ? 'radius-friendly' : tweaks.radius === 'sharp' ? 'radius-sharp' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <div className={shellCls}>
+      <Sidebar route={route} onNav={setRoute} theme={tweaks.sidebarTheme} user={user}/>
+      <div className="main">
+        <TopBar title={routeTitle[0]} crumb={routeTitle[1]} user={user}/>
+        {ScreenEl}
+      </div>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Appearance">
+          <TweakRadio label="Sidebar theme" value={tweaks.sidebarTheme}
+            options={[{value:'light',label:'Light'},{value:'dark',label:'Dark ink'},{value:'peach',label:'Peach'}]}
+            onChange={v => setTweaks({ sidebarTheme: v })} />
+          <TweakRadio label="Card radius" value={tweaks.radius}
+            options={[{value:'sharp',label:'Sharp'},{value:'default',label:'Default'},{value:'friendly',label:'Friendly'}]}
+            onChange={v => setTweaks({ radius: v })} />
+          <TweakRadio label="Density" value={tweaks.density}
+            options={[{value:'compact',label:'Compact'},{value:'comfortable',label:'Comfortable'}]}
+            onChange={v => setTweaks({ density: v })} />
+          <TweakRadio label="Status badges" value={tweaks.badgeStyle}
+            options={[{value:'soft',label:'Soft'},{value:'solid',label:'Solid'},{value:'outline',label:'Outline'}]}
+            onChange={v => setTweaks({ badgeStyle: v })} />
+        </TweakSection>
+        <TweakSection title="Jump to screen">
+          {[
+            ['login','Login'],['dashboard','Dashboard'],['review','Review editor'],
+            ['templates','Templates'],['admin','Admin overview'],['feedback','Guardian feedback (public)']
+          ].map(([id,lbl]) => (
+            <TweakButton key={id} onClick={() => setRoute(id)}>{lbl}</TweakButton>
+          ))}
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

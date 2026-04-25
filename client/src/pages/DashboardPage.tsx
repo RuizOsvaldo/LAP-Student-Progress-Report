@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useSearch } from 'wouter'
 import { MonthPicker } from '../components/MonthPicker'
+import { Bell, RefreshCw } from 'lucide-react'
 import type { PendingCheckinResponse } from '../types/checkin'
 
 interface DashboardData {
@@ -41,17 +42,11 @@ async function fetchPendingCheckin(): Promise<PendingCheckinResponse> {
   return res.json()
 }
 
-interface StatCardProps {
-  label: string
-  value: number
-  color?: string
-}
-
-function StatCard({ label, value, color = 'text-slate-800' }: StatCardProps) {
+function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className={`mt-1 text-3xl font-bold ${color}`}>{value}</p>
+    <div className="card stat">
+      <div className="lbl">{label}</div>
+      <div className="num">{value}</div>
     </div>
   )
 }
@@ -76,7 +71,6 @@ export function DashboardPage() {
       if (res.ok) {
         const data = await res.json()
         setSyncMsg({ ok: true, text: `Sync complete — ${data.studentsUpserted ?? 0} students, ${data.assignmentsCreated ?? 0} assignments updated.` })
-        // Refresh all instructor data across pages
         queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         queryClient.invalidateQueries({ queryKey: ['instructor'] })
         queryClient.invalidateQueries({ queryKey: ['instructor-students'] })
@@ -127,127 +121,125 @@ export function DashboardPage() {
     !checkinData.alreadySubmitted
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-        <div className="flex items-center gap-3">
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">Instructor</div>
+          <h2>Dashboard</h2>
+        </div>
+        <div className="actions">
           <MonthPicker />
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
+          <button className="btn outline" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={15} className={syncing ? 'spin' : ''} />
             {syncing ? 'Syncing…' : 'Sync Pike13'}
           </button>
+          <Link href={`/reviews?month=${month}`} className="btn primary">
+            View Reviews
+          </Link>
         </div>
       </div>
+
       {syncMsg && (
-        <p className={`mb-4 rounded-lg px-3 py-2 text-sm ${syncMsg.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+        <p style={{
+          marginBottom: 16,
+          borderRadius: 8,
+          padding: '10px 14px',
+          fontSize: 13,
+          background: syncMsg.ok ? '#f0fdf4' : '#fef2f2',
+          color: syncMsg.ok ? 'var(--color-success)' : 'var(--color-danger)',
+          border: `1px solid ${syncMsg.ok ? '#bbf7d0' : '#fecaca'}`,
+        }}>
           {syncMsg.text}
         </p>
       )}
 
       {showCheckinBanner && (
-        <div className="mb-6 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <span>
-            Weekly TA check-in not yet submitted for {checkinData.weekOf}.{' '}
-            <Link href="/checkin" className="font-medium underline">
+        <div className="checkin-banner">
+          <Bell className="bell" />
+          <div className="msg">
+            <strong>TA check-in is due this week.</strong>{' '}
+            Not yet submitted for {checkinData.weekOf}.{' '}
+            <Link href="/checkin" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
               Submit now
             </Link>
-          </span>
-          <button
-            onClick={() => setCheckinDismissed(true)}
-            className="ml-4 text-amber-600 hover:text-amber-800"
-            aria-label="Dismiss"
-          >
-            ✕
+          </div>
+          <button className="btn sm outline" onClick={() => setCheckinDismissed(true)}>
+            Dismiss
           </button>
         </div>
       )}
 
-      {isLoading && <p className="text-slate-500">Loading…</p>}
-      {error && <p className="text-red-600">Failed to load dashboard.</p>}
+      {isLoading && <p style={{ color: 'var(--color-muted)' }}>Loading…</p>}
+      {error && <p style={{ color: 'var(--color-danger)' }}>Failed to load dashboard.</p>}
 
       {data && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="grid stats" style={{ marginBottom: 20 }}>
           <StatCard label="Total Students" value={data.totalStudents} />
-          <StatCard label="Pending" value={data.pending} color="text-slate-600" />
-          <StatCard label="Draft" value={data.draft} color="text-amber-600" />
-          <StatCard label="Sent" value={data.sent} color="text-green-600" />
+          <StatCard label="Pending" value={data.pending} />
+          <StatCard label="Draft" value={data.draft} />
+          <StatCard label="Sent" value={data.sent} />
         </div>
       )}
 
-      {data && (
-        <div className="mt-4">
-          <Link
-            href={`/reviews?month=${month}`}
-            className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            View Reviews
-          </Link>
+      <div className="card card-table">
+        <div className="card-table-head">
+          <div>
+            <h3>My Students</h3>
+            {studentList.length > 0 && (
+              <div className="muted">
+                {studentList.length} student{studentList.length !== 1 ? 's' : ''} — click to open their review
+              </div>
+            )}
+          </div>
         </div>
-      )}
 
-      {/* Student list */}
-      <div className="mt-8">
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">
-          My Students
-          {studentList.length > 0 && (
-            <span className="ml-2 text-sm font-normal text-slate-500">
-              ({studentList.length})
-            </span>
-          )}
-        </h2>
-
-        {studentsLoading && <p className="text-slate-500 text-sm">Loading students…</p>}
+        {studentsLoading && <p style={{ padding: '16px 18px', color: 'var(--color-muted)', fontSize: 14 }}>Loading students…</p>}
 
         {!studentsLoading && studentList.length === 0 && (
-          <p className="text-sm text-slate-500">
+          <p style={{ padding: '16px 18px', color: 'var(--color-muted)', fontSize: 14 }}>
             No students assigned yet. Run a Pike13 sync to import your roster.
           </p>
         )}
 
         {studentList.length > 0 && (
-          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50">
-                <tr>
-                  <th
-                    className="cursor-pointer select-none px-4 py-2.5 text-left font-medium text-slate-600 hover:text-slate-800 whitespace-nowrap"
-                    onClick={() => handleStudentSort('name')}
-                  >
-                    Name{' '}
-                    {studentSortKey === 'name'
-                      ? <span className="text-blue-600">{studentSortDir === 'asc' ? '↑' : '↓'}</span>
-                      : <span className="text-slate-300">↕</span>}
-                  </th>
-                  <th
-                    className="cursor-pointer select-none px-4 py-2.5 text-left font-medium text-slate-600 hover:text-slate-800 whitespace-nowrap"
-                    onClick={() => handleStudentSort('githubUsername')}
-                  >
-                    GitHub{' '}
-                    {studentSortKey === 'githubUsername'
-                      ? <span className="text-blue-600">{studentSortDir === 'asc' ? '↑' : '↓'}</span>
-                      : <span className="text-slate-300">↕</span>}
-                  </th>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th
+                  className="sortable"
+                  onClick={() => handleStudentSort('name')}
+                >
+                  Name{' '}
+                  {studentSortKey === 'name'
+                    ? <span style={{ color: 'var(--color-primary)' }}>{studentSortDir === 'asc' ? '↑' : '↓'}</span>
+                    : <span style={{ color: 'var(--slate-300)' }}>↕</span>}
+                </th>
+                <th
+                  className="sortable"
+                  onClick={() => handleStudentSort('githubUsername')}
+                >
+                  GitHub{' '}
+                  {studentSortKey === 'githubUsername'
+                    ? <span style={{ color: 'var(--color-primary)' }}>{studentSortDir === 'asc' ? '↑' : '↓'}</span>
+                    : <span style={{ color: 'var(--slate-300)' }}>↕</span>}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedStudents.map((s) => (
+                <tr key={s.id}>
+                  <td><span className="name">{s.name}</span></td>
+                  <td className="muted">
+                    {s.githubUsername ? (
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13 }}>@{s.githubUsername}</span>
+                    ) : (
+                      <span style={{ color: 'var(--slate-300)' }}>—</span>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {sortedStudents.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 font-medium text-slate-800">{s.name}</td>
-                    <td className="px-4 py-2.5 text-slate-500">
-                      {s.githubUsername ? (
-                        <span className="font-mono text-xs">{s.githubUsername}</span>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

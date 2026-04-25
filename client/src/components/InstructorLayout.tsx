@@ -2,13 +2,18 @@ import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useAuth } from '../hooks/useAuth'
 import { useQueryClient } from '@tanstack/react-query'
+import { Home, FileText, LayoutTemplate, ClipboardCheck, RefreshCw, Bell, BarChart } from 'lucide-react'
 
-const NAV_LINKS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/reviews', label: 'Reviews' },
-  { href: '/templates', label: 'Templates' },
-  { href: '/checkin', label: 'Check-in' },
+const INSTRUCTOR_LINKS = [
+  { href: '/dashboard', label: 'Dashboard', Icon: Home },
+  { href: '/reviews',   label: 'Reviews',   Icon: FileText },
+  { href: '/templates', label: 'Templates', Icon: LayoutTemplate },
+  { href: '/checkin',   label: 'Check-in',  Icon: ClipboardCheck },
 ]
+
+function getInitials(name: string): string {
+  return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
+}
 
 interface InstructorLayoutProps {
   children: React.ReactNode
@@ -44,64 +49,82 @@ export function InstructorLayout({ children }: InstructorLayoutProps) {
     }
   }
 
+  const initials = user?.name ? getInitials(user.name) : '?'
+
   return (
-    <div className="flex min-h-screen">
-      <nav className="w-52 shrink-0 border-r border-slate-200 bg-white p-4 flex flex-col">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">
-          Instructor
-        </p>
-        <ul className="space-y-1">
-          {NAV_LINKS.map(({ href, label }) => {
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">L</div>
+          <div>
+            <div className="brand-name">League Review Tool</div>
+            <div className="brand-sub">Instructor portal</div>
+          </div>
+        </div>
+
+        <div className="side-section">
+          <h5>Instructor</h5>
+          {INSTRUCTOR_LINKS.map(({ href, label, Icon }) => {
             const isActive = location === href || (href === '/reviews' && location.startsWith('/reviews'))
             return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  className={`block rounded px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {label}
-                </Link>
-              </li>
+              <Link
+                key={href}
+                href={href}
+                className="nav-item"
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon className="nav-ico" />
+                {label}
+              </Link>
             )
           })}
-        </ul>
-
-        {/* Sync button */}
-        <div className="mt-6 border-t border-slate-200 pt-4">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="w-full rounded px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            <span className={syncing ? 'animate-spin' : ''}>↻</span>
-            {syncing ? 'Syncing…' : 'Sync Pike13'}
-          </button>
-          {syncResult && (
-            <p className={`mt-1 px-3 text-xs ${syncResult.ok ? 'text-green-600' : 'text-red-500'}`}>
-              {syncResult.text}
-            </p>
-          )}
         </div>
 
         {user?.isAdmin && (
-          <div className="mt-4 border-t border-slate-200 pt-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
-              Admin
-            </p>
+          <div className="side-section">
+            <h5>Admin</h5>
             <Link
               href="/admin"
-              className="block rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+              className="nav-item"
+              aria-current={location.startsWith('/admin') ? 'page' : undefined}
             >
+              <BarChart className="nav-ico" />
               Admin Panel
             </Link>
           </div>
         )}
-      </nav>
-      <main className="flex-1 overflow-auto p-8">{children}</main>
+
+        <div className="sync-box">
+          <div className="sync-head">
+            <RefreshCw size={14} /> Pike13 sync
+          </div>
+          {syncResult && (
+            <small style={{ color: syncResult.ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
+              {syncResult.text}
+            </small>
+          )}
+          <button className="sync-btn" onClick={handleSync} disabled={syncing}>
+            <RefreshCw size={13} className={syncing ? 'spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </button>
+        </div>
+      </aside>
+
+      <div className="main">
+        <div className="topbar">
+          <div className="spacer" />
+          <button className="btn ghost sm" title="Notifications">
+            <Bell size={15} />
+          </button>
+          {user && (
+            <div className="user-chip">
+              <div className="avatar">{initials}</div>
+              <span>{user.name}</span>
+            </div>
+          )}
+        </div>
+        {children}
+      </div>
     </div>
   )
 }

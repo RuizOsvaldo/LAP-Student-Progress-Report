@@ -3,32 +3,28 @@ export function LoginPage() {
   const denied = params.get('error') === 'denied'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f5f5]">
-      <div className="w-full max-w-sm p-8 bg-white rounded-xl shadow-md text-center">
-        <img
-          src="https://www.jointheleague.org/_astro/wordmark-h-1200.DPj-wZBK_Z2jTnVL.webp"
-          alt="The LEAGUE of Amazing Programmers"
-          className="mx-auto mb-6 h-10 object-contain"
-        />
-        <h1 className="text-xl font-bold text-slate-800 mb-1">LEAGUE Progress Report</h1>
-        <p className="text-sm text-slate-500 mb-6">
-          Sign in with your Pike13 account.<br />
-          <span className="text-xs text-slate-400">Requires a @jointheleague.org email.</span>
-        </p>
+    <div className="login-screen">
+      <div className="login-card">
+        <div className="brand-mark" style={{ margin: '0 auto 14px' }}>L</div>
+        <h1>League Review Tool</h1>
+        <p>Monthly student reviews, TA check-ins, and guardian feedback — all in one place.</p>
         {denied && (
-          <p className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+          <p style={{
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            padding: '10px 14px',
+            fontSize: 13,
+            color: 'var(--color-danger)',
+            marginBottom: 16,
+          }}>
             Access denied. Only @jointheleague.org accounts can log in.
           </p>
         )}
-        <a
-          href="/api/auth/pike13"
-          className="inline-block w-full py-2 px-4 rounded-lg font-medium text-white transition-colors"
-          style={{ backgroundColor: '#f37121' }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#d95f0e')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f37121')}
-        >
+        <a href="/api/auth/pike13" className="btn primary lg">
           Sign in with Pike13
         </a>
+        <div className="legal">Only <code>@jointheleague.org</code> accounts are accepted.</div>
       </div>
     </div>
   )

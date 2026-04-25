@@ -45,7 +45,8 @@ export function MonthPicker({ className }: MonthPickerProps) {
     <select
       value={selected}
       onChange={handleChange}
-      className={`rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ${className ?? ''}`}
+      className={`select ${className ?? ''}`}
+      style={{ width: 'auto' }}
       aria-label="Select month"
     >
       {options.map((ym) => (

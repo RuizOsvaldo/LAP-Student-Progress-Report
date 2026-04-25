@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { MonthPicker } from '../components/MonthPicker'
 import { useSearch } from 'wouter'
+import { RefreshCw } from 'lucide-react'
 import type { AdminNotificationDto } from '../types/admin'
 import type { Pike13StatusDto, Pike13SyncResultDto } from '../types/pike13'
 
@@ -21,9 +22,7 @@ function getCurrentMonth(): string {
 }
 
 async function fetchNotifications(unreadOnly = false): Promise<AdminNotificationDto[]> {
-  const url = unreadOnly
-    ? '/api/admin/notifications?unread=true'
-    : '/api/admin/notifications'
+  const url = unreadOnly ? '/api/admin/notifications?unread=true' : '/api/admin/notifications'
   const res = await fetch(url)
   if (!res.ok) throw new Error('Failed to load notifications')
   return res.json()
@@ -55,19 +54,12 @@ async function fetchAnalytics(month: string): Promise<AnalyticsDto> {
   return res.json()
 }
 
-interface StatCardProps {
-  label: string
-  value: string | number
-  sub?: string
-  color?: string
-}
-
-function StatCard({ label, value, sub, color = 'text-slate-800' }: StatCardProps) {
+function StatCard({ label, num, sub }: { label: string; num: string | number; sub?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
+    <div className="card stat">
+      <div className="lbl">{label}</div>
+      <div className="num" style={typeof num === 'string' && num.length > 4 ? { fontSize: 20, marginTop: 4 } : undefined}>{num}</div>
+      {sub && <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{sub}</div>}
     </div>
   )
 }
@@ -111,159 +103,195 @@ export function AdminDashboardPage() {
     : notifications.filter((n) => !n.isRead)
 
   return (
-    <div className="max-w-4xl space-y-8">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-slate-800">Admin Dashboard</h1>
-          {unreadCount > 0 && (
-            <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-              {unreadCount}
-            </span>
-          )}
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">Admin</div>
+          <h2>Program overview</h2>
         </div>
-        <MonthPicker />
-      </div>
-
-      {/* Analytics section */}
-      {analytics && (
-        <section>
-          <h2 className="mb-3 text-lg font-semibold text-slate-700">Review Analytics — {analytics.month}</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            <StatCard
-              label="Sent this month"
-              value={analytics.totalSent}
-              color="text-green-600"
-            />
-            <StatCard
-              label="Still need to send"
-              value={analytics.needToSend}
-              color={analytics.needToSend > 0 ? 'text-amber-600' : 'text-slate-400'}
-            />
-            <StatCard
-              label="Feedback received"
-              value={analytics.monthFeedbackCount}
-              sub={`${analytics.feedbackRate}% response rate`}
-              color="text-blue-600"
-            />
-            <StatCard
-              label="Avg rating"
-              value={analytics.avgRating !== null ? `${analytics.avgRating} / 5` : '—'}
-              sub={`${analytics.totalFeedback} total responses`}
-              color="text-purple-600"
-            />
-          </div>
-
-          {analytics.topSuggestions.length > 0 && (
-            <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">Top Improvement Suggestions</p>
-              <ul className="space-y-2">
-                {analytics.topSuggestions.map((s, i) => (
-                  <li key={i} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-700">{s.suggestion ?? '—'}</span>
-                    <span className="ml-4 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                      {s.count}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+        <div className="actions">
+          {pike13Status?.connected && (
+            <div className="pike-status">
+              <span className="ok" /> Pike13 connected
             </div>
           )}
-        </section>
-      )}
-
-      {/* Notifications section */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-slate-700">Notifications</h2>
-          {notifications.length > 0 && (
+          {pike13Status?.connected && (
             <button
-              onClick={() => setShowAllNotifications((v) => !v)}
-              className="text-xs text-blue-600 hover:underline"
+              className="btn outline"
+              onClick={() => syncMutation.mutate()}
+              disabled={syncMutation.isPending}
             >
-              {showAllNotifications ? 'Show unread only' : `Show all (${notifications.length})`}
+              <RefreshCw size={15} className={syncMutation.isPending ? 'spin' : ''} />
+              {syncMutation.isPending ? 'Syncing…' : 'Sync now'}
             </button>
           )}
+          {pike13Status && !pike13Status.connected && (
+            <button
+              className="btn outline"
+              onClick={() => { window.location.href = '/api/admin/pike13/connect' }}
+            >
+              Connect Pike13
+            </button>
+          )}
+          <MonthPicker />
+        </div>
+      </div>
+
+      {syncMutation.isSuccess && syncMutation.data && (
+        <p style={{ marginBottom: 16, fontSize: 13, color: 'var(--color-success)' }}>
+          Synced: {syncMutation.data.studentsUpserted} students, {syncMutation.data.assignmentsCreated} assignments, {syncMutation.data.hoursCreated} hours
+        </p>
+      )}
+      {syncMutation.isError && (
+        <p style={{ marginBottom: 16, fontSize: 13, color: 'var(--color-danger)' }}>
+          {(syncMutation.error as Error).message}
+        </p>
+      )}
+
+      {analytics && (
+        <div className="grid stats" style={{ marginBottom: 20 }}>
+          <StatCard label="Sent this month" num={analytics.totalSent} />
+          <StatCard
+            label="Still need to send"
+            num={analytics.needToSend}
+          />
+          <StatCard
+            label="Feedback received"
+            num={analytics.monthFeedbackCount}
+            sub={`${analytics.feedbackRate}% response rate`}
+          />
+          <StatCard
+            label="Avg rating"
+            num={analytics.avgRating !== null ? `${analytics.avgRating} / 5` : '—'}
+            sub={`${analytics.totalFeedback} total responses`}
+          />
+        </div>
+      )}
+
+      <div className="grid split-2-1">
+        {/* Notifications panel */}
+        <div className="card card-table">
+          <div className="card-table-head">
+            <div>
+              <h3 style={{ margin: 0 }}>
+                Notifications
+                {unreadCount > 0 && (
+                  <span style={{
+                    marginLeft: 8,
+                    background: 'var(--color-danger)',
+                    color: '#fff',
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '1px 7px',
+                  }}>
+                    {unreadCount}
+                  </span>
+                )}
+              </h3>
+            </div>
+            {notifications.length > 0 && (
+              <button
+                className="btn ghost sm"
+                onClick={() => setShowAllNotifications((v) => !v)}
+              >
+                {showAllNotifications ? 'Unread only' : `Show all (${notifications.length})`}
+              </button>
+            )}
+          </div>
+
+          {isLoading && <p style={{ padding: '16px 18px', color: 'var(--color-muted)', fontSize: 14 }}>Loading…</p>}
+          {error && <p style={{ padding: '16px 18px', color: 'var(--color-danger)', fontSize: 14 }}>Failed to load notifications.</p>}
+          {!isLoading && visibleNotifications.length === 0 && (
+            <p style={{ padding: '16px 18px', color: 'var(--color-muted)', fontSize: 14 }}>No unread notifications.</p>
+          )}
+
+          {visibleNotifications.length > 0 && (
+            <table className="tbl">
+              <tbody>
+                {visibleNotifications.map((n) => (
+                  <tr key={n.id} style={{ opacity: n.isRead ? 0.6 : 1 }}>
+                    <td>
+                      <div style={{ fontWeight: 600, color: 'var(--color-ink)', fontSize: 13 }}>{n.fromUserName}</div>
+                      <div style={{ color: 'var(--color-body)', fontSize: 13 }}>{n.message}</div>
+                      <div style={{ color: 'var(--color-muted)', fontSize: 12, marginTop: 2 }}>
+                        {new Date(n.createdAt).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      {!n.isRead && (
+                        <button
+                          className="btn outline sm"
+                          onClick={() => markReadMutation.mutate(n.id)}
+                          disabled={markReadMutation.isPending}
+                        >
+                          Mark read
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {analytics && analytics.topSuggestions.length > 0 && (
+            <>
+              <div style={{ padding: '12px 18px 4px', borderTop: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--color-muted)' }}>
+                  Top Improvement Suggestions
+                </div>
+              </div>
+              <table className="tbl">
+                <tbody>
+                  {analytics.topSuggestions.map((s, i) => (
+                    <tr key={i}>
+                      <td style={{ color: 'var(--color-body)' }}>{s.suggestion ?? '—'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="badge">{s.count}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
 
-        {isLoading && <p className="text-slate-500">Loading…</p>}
-        {error && <p className="text-red-600">Failed to load notifications.</p>}
-
-        {!isLoading && visibleNotifications.length === 0 && (
-          <p className="text-slate-500 text-sm">No unread notifications.</p>
-        )}
-
-        {visibleNotifications.length > 0 && (
-          <ul className="space-y-3">
-            {visibleNotifications.map((n) => (
-              <li
-                key={n.id}
-                className={`flex items-start justify-between rounded-lg border px-4 py-3 shadow-sm ${
-                  n.isRead ? 'border-slate-100 bg-slate-50' : 'border-slate-200 bg-white'
-                }`}
-              >
-                <div>
-                  <p className={`text-sm font-medium ${n.isRead ? 'text-slate-500' : 'text-slate-800'}`}>{n.fromUserName}</p>
-                  <p className="mt-0.5 text-sm text-slate-600">{n.message}</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {new Date(n.createdAt).toLocaleDateString()}
-                  </p>
-                </div>
-                {!n.isRead && (
-                  <button
-                    onClick={() => markReadMutation.mutate(n.id)}
-                    disabled={markReadMutation.isPending}
-                    className="ml-4 shrink-0 rounded bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
-                  >
-                    Mark as Read
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Pike13 section */}
-      {pike13Status !== undefined && (
-        <section>
-          <h2 className="text-lg font-semibold text-slate-700 mb-3">Pike13</h2>
-
-          {pike13Status.connected ? (
-            <div className="space-y-3">
-              <p className="font-medium text-green-600">Connected</p>
-              <button
-                onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {syncMutation.isPending ? 'Syncing…' : 'Sync Pike13'}
-              </button>
-              {syncMutation.isSuccess && syncMutation.data && (
-                <p className="text-sm text-slate-700">
-                  Synced: {syncMutation.data.studentsUpserted} students,{' '}
-                  {syncMutation.data.assignmentsCreated} assignments,{' '}
-                  {syncMutation.data.hoursCreated} hours
-                </p>
-              )}
-              {syncMutation.isError && (
-                <p className="text-sm text-red-600">
-                  {(syncMutation.error as Error).message}
-                </p>
-              )}
+        {/* Analytics breakdown */}
+        {analytics && (
+          <div className="card">
+            <h3>Review analytics</h3>
+            <div className="divider" />
+            <div className="kv">
+              <span className="k">Month</span>
+              <span className="v">{analytics.month}</span>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-slate-600">Not Connected</p>
-              <button
-                onClick={() => { window.location.href = '/api/admin/pike13/connect' }}
-                className="rounded bg-slate-700 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                Connect Pike13
-              </button>
+            <div className="kv">
+              <span className="k">Sent</span>
+              <span className="v" style={{ color: 'var(--color-success)' }}>{analytics.totalSent}</span>
             </div>
-          )}
-        </section>
-      )}
+            <div className="kv">
+              <span className="k">Need to send</span>
+              <span className="v" style={{ color: analytics.needToSend > 0 ? 'var(--color-warning)' : 'var(--color-muted)' }}>
+                {analytics.needToSend}
+              </span>
+            </div>
+            <div className="kv">
+              <span className="k">Feedback rate</span>
+              <span className="v">{analytics.feedbackRate}%</span>
+            </div>
+            <div className="kv">
+              <span className="k">Avg rating</span>
+              <span className="v">{analytics.avgRating !== null ? `${analytics.avgRating} / 5` : '—'}</span>
+            </div>
+            <div className="kv">
+              <span className="k">Total responses</span>
+              <span className="v">{analytics.totalFeedback}</span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

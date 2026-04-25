@@ -1,12 +1,18 @@
 import { Link, useLocation } from 'wouter'
+import { useAuth } from '../hooks/useAuth'
+import { BarChart, Users, Shield, MessageSquare, Heart, Bell, Home } from 'lucide-react'
 
-const NAV_LINKS = [
-  { href: '/admin', label: 'Dashboard' },
-  { href: '/admin/instructors', label: 'Instructors' },
-  { href: '/admin/compliance', label: 'Compliance' },
-  { href: '/admin/volunteer-hours', label: 'Volunteers' },
-  { href: '/admin/feedback', label: 'Feedback' },
+const ADMIN_LINKS = [
+  { href: '/admin',                  label: 'Overview',   Icon: BarChart },
+  { href: '/admin/instructors',      label: 'Instructors', Icon: Users },
+  { href: '/admin/compliance',       label: 'Compliance', Icon: Shield },
+  { href: '/admin/volunteer-hours',  label: 'Volunteers', Icon: Heart },
+  { href: '/admin/feedback',         label: 'Feedback',   Icon: MessageSquare },
 ]
+
+function getInitials(name: string): string {
+  return name.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
+}
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -14,46 +20,66 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const [location] = useLocation()
+  const { user } = useAuth()
+  const initials = user?.name ? getInitials(user.name) : '?'
 
   return (
-    <div className="flex min-h-screen">
-      <nav className="w-52 shrink-0 border-r border-slate-200 bg-white p-4">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">
-          Admin
-        </p>
-        <ul className="space-y-1">
-          {NAV_LINKS.map(({ href, label }) => {
+    <div className="app">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-mark">L</div>
+          <div>
+            <div className="brand-name">League Review Tool</div>
+            <div className="brand-sub">Admin portal</div>
+          </div>
+        </div>
+
+        <div className="side-section">
+          <h5>Admin</h5>
+          {ADMIN_LINKS.map(({ href, label, Icon }) => {
             const isActive = location === href
             return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  className={`block rounded px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  {label}
-                </Link>
-              </li>
+              <Link
+                key={href}
+                href={href}
+                className="nav-item"
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <Icon className="nav-ico" />
+                {label}
+              </Link>
             )
           })}
-        </ul>
+        </div>
 
-        <div className="mt-6 border-t border-slate-200 pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">
-            Instructor
-          </p>
+        <div className="side-section" style={{ marginTop: 'auto' }}>
+          <h5>Instructor</h5>
           <Link
             href="/dashboard"
-            className="block rounded px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
+            className="nav-item"
+            aria-current={location === '/dashboard' ? 'page' : undefined}
           >
+            <Home className="nav-ico" />
             My Dashboard
           </Link>
         </div>
-      </nav>
-      <main className="flex-1 overflow-auto p-8">{children}</main>
+      </aside>
+
+      <div className="main">
+        <div className="topbar">
+          <div className="spacer" />
+          <button className="btn ghost sm" title="Notifications">
+            <Bell size={15} />
+          </button>
+          {user && (
+            <div className="user-chip">
+              <div className="avatar">{initials}</div>
+              <span>{user.name}</span>
+            </div>
+          )}
+        </div>
+        {children}
+      </div>
     </div>
   )
 }
